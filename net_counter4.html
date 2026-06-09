@@ -2,685 +2,712 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>金網結び目検出</title>
 <style>
-  :root {
-    --bg: #0a0a0f;
-    --surface: #13131a;
-    --border: #2a2a3a;
-    --accent: #00e5ff;
-    --accent2: #7c4dff;
-    --warn: #ff6d00;
-    --text: #e8e8f0;
-    --muted: #6b6b88;
-    --step-done: #00e5ff22;
-    --step-active: #7c4dff44;
-    --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-    --font-ui: 'Inter', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--bg); color: var(--text);
-    font-family: var(--font-ui); min-height: 100vh;
-    display: flex; flex-direction: column; align-items: center;
-  }
-  header {
-    width: 100%; padding: 16px 20px 12px;
-    border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; gap: 12px;
-    background: var(--surface);
-  }
-  header .logo {
-    width: 32px; height: 32px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    border-radius: 8px; display: flex; align-items: center; justify-content: center;
-    font-size: 16px;
-  }
-  header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.03em; }
-  header .ver {
-    margin-left: auto; font-family: var(--font-mono); font-size: 10px;
-    color: var(--muted); background: var(--border); padding: 2px 7px; border-radius: 4px;
-  }
-  .main-wrap {
-    width: 100%; max-width: 520px; padding: 16px;
-    display: flex; flex-direction: column; gap: 14px;
-  }
-  .pipeline {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 10px; padding: 12px;
-  }
-  .pipeline-title {
-    font-size: 10px; font-family: var(--font-mono); color: var(--muted);
-    letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px;
-  }
-  .steps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
-  .step-badge {
-    font-family: var(--font-mono); font-size: 9px; padding: 5px 6px;
-    border-radius: 5px; border: 1px solid var(--border);
-    background: var(--bg); color: var(--muted); text-align: center;
-    transition: all 0.2s; line-height: 1.3;
-  }
-  .step-badge.active { background: var(--step-active); border-color: var(--accent2); color: #c4b5fd; }
-  .step-badge.done   { background: var(--step-done);   border-color: var(--accent);  color: var(--accent); }
-  .step-badge .step-num { display: block; font-size: 7px; opacity: 0.6; margin-bottom: 1px; }
-  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-  .stat-box {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 7px; padding: 8px 10px; text-align: center;
-  }
-  .stat-val { font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--accent); display: block; }
-  .stat-key { font-size: 9px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; margin-top: 2px; }
-  .controls {
-    display: flex; flex-direction: column; gap: 10px;
-    background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px;
-  }
-  .ctrl-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .btn {
-    flex: 1; padding: 10px 14px; border-radius: 7px; border: none;
-    font-family: var(--font-ui); font-size: 13px; font-weight: 600;
-    cursor: pointer; transition: all 0.15s; letter-spacing: 0.02em;
-  }
-  .btn-primary { background: linear-gradient(135deg, var(--accent2), #4527a0); color: #fff; }
-  .btn-primary:active { transform: scale(0.97); }
-  .btn-accent  { background: linear-gradient(135deg, var(--accent), #00838f); color: #000; }
-  .btn-accent:active  { transform: scale(0.97); }
-  .btn-ghost   { background: transparent; border: 1px solid var(--border); color: var(--muted); }
-  .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
-  input[type=file] { display: none; }
-  .param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .param-item { display: flex; flex-direction: column; gap: 4px; }
-  .param-item label {
-    font-family: var(--font-mono); font-size: 9px; color: var(--muted);
-    display: flex; justify-content: space-between;
-  }
-  .param-item label span { color: var(--accent); font-weight: 700; }
-  input[type=range] {
-    -webkit-appearance: none; width: 100%; height: 3px;
-    border-radius: 2px; background: var(--border); outline: none;
-  }
-  input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
-    background: var(--accent2); cursor: pointer; border: 2px solid var(--bg);
-  }
-  .log-panel {
-    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-    padding: 10px 12px; font-family: var(--font-mono); font-size: 10px;
-    color: var(--muted); max-height: 130px; overflow-y: auto; line-height: 1.6;
-  }
-  .log-panel .log-ok   { color: var(--accent); }
-  .log-panel .log-warn { color: var(--warn); }
-  .log-panel .log-err  { color: #ff5252; }
-  .log-panel .log-dim  { color: var(--muted); opacity: 0.6; }
-  .section-sep { font-family: var(--font-mono); font-size: 9px; color: var(--border); letter-spacing: 0.1em; }
-  .dual-canvas { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .canvas-card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
-  }
-  .canvas-card-label {
-    font-family: var(--font-mono); font-size: 8px; color: var(--muted);
-    padding: 5px 8px; letter-spacing: 0.08em; border-bottom: 1px solid var(--border);
-  }
-  .canvas-card canvas { display: block; width: 100%; height: auto; }
-  #opencv-status {
-    font-family: var(--font-mono); font-size: 11px; text-align: center;
-    color: var(--muted); padding: 10px;
-  }
-  #opencv-status.ready { color: var(--accent); }
-  .spinner {
-    display: inline-block; width: 12px; height: 12px;
-    border: 2px solid var(--border); border-top-color: var(--accent);
-    border-radius: 50%; animation: spin 0.8s linear infinite;
-    vertical-align: middle; margin-right: 6px;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+:root{
+  --bg:#08090d;--surf:#111318;--bdr:#1e2130;
+  --cyan:#00e5ff;--violet:#8b5cf6;--amber:#f59e0b;
+  --red:#f43f5e;--green:#22c55e;
+  --txt:#dde1f0;--muted:#525870;
+  --mono:'JetBrains Mono','Fira Code',monospace;
+  --ui:'Inter','Hiragino Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:var(--ui);
+  display:flex;flex-direction:column;align-items:center;min-height:100vh}
+header{width:100%;background:var(--surf);border-bottom:1px solid var(--bdr);
+  padding:14px 18px;display:flex;align-items:center;gap:10px}
+header .icon{width:30px;height:30px;border-radius:7px;
+  background:linear-gradient(135deg,var(--cyan),var(--violet));
+  display:flex;align-items:center;justify-content:center;font-size:15px}
+header h1{font-size:14px;font-weight:700;letter-spacing:.04em}
+header .badge{margin-left:auto;font-family:var(--mono);font-size:9px;
+  color:var(--muted);background:var(--bdr);padding:2px 7px;border-radius:3px}
+.wrap{width:100%;max-width:540px;padding:14px;display:flex;flex-direction:column;gap:12px}
+
+/* ── pipeline ── */
+.pipe{background:var(--surf);border:1px solid var(--bdr);border-radius:9px;padding:11px}
+.pipe-title{font-family:var(--mono);font-size:9px;color:var(--muted);
+  letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:3px}
+.s{font-family:var(--mono);font-size:8px;padding:5px 4px;border-radius:4px;
+  border:1px solid var(--bdr);background:var(--bg);color:var(--muted);
+  text-align:center;line-height:1.4;transition:all .18s}
+.s .n{display:block;font-size:6.5px;opacity:.55;margin-bottom:1px}
+.s.run{background:#8b5cf622;border-color:var(--violet);color:#c4b5fd}
+.s.ok {background:#00e5ff18;border-color:var(--cyan);color:var(--cyan)}
+.s.err{background:#f43f5e18;border-color:var(--red);color:var(--red)}
+
+/* ── stats ── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.stat{background:var(--surf);border:1px solid var(--bdr);border-radius:7px;
+  padding:7px 8px;text-align:center}
+.sv{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--cyan);display:block}
+.sk{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+
+/* ── controls ── */
+.ctrl{background:var(--surf);border:1px solid var(--bdr);border-radius:9px;padding:13px;
+  display:flex;flex-direction:column;gap:9px}
+.row{display:flex;gap:7px;align-items:center}
+.btn{flex:1;padding:9px 12px;border-radius:6px;border:none;font-family:var(--ui);
+  font-size:12px;font-weight:600;cursor:pointer;transition:all .13s}
+.btn-v{background:linear-gradient(135deg,var(--violet),#4c1d95);color:#fff}
+.btn-c{background:linear-gradient(135deg,var(--cyan),#0891b2);color:#000}
+.btn-g{background:transparent;border:1px solid var(--bdr);color:var(--muted)}
+.btn:disabled{opacity:.3;cursor:not-allowed}
+input[type=file]{display:none}
+.sep{font-family:var(--mono);font-size:9px;color:var(--bdr);letter-spacing:.08em}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.pi{display:flex;flex-direction:column;gap:3px}
+.pi label{font-family:var(--mono);font-size:9px;color:var(--muted);
+  display:flex;justify-content:space-between}
+.pi label span{color:var(--cyan);font-weight:700}
+input[type=range]{-webkit-appearance:none;width:100%;height:3px;
+  border-radius:2px;background:var(--bdr);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;
+  border-radius:50%;background:var(--violet);cursor:pointer;border:2px solid var(--bg)}
+
+/* ── canvases ── */
+.dual{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.cc{background:var(--surf);border:1px solid var(--bdr);border-radius:8px;overflow:hidden}
+.cl{font-family:var(--mono);font-size:8px;color:var(--muted);
+  padding:5px 8px;border-bottom:1px solid var(--bdr);letter-spacing:.08em}
+.cc canvas{display:block;width:100%;height:auto}
+.out-wrap{background:var(--surf);border:1px solid var(--bdr);border-radius:9px;overflow:hidden}
+
+/* ── log ── */
+.log{background:var(--bg);border:1px solid var(--bdr);border-radius:7px;
+  padding:9px 11px;font-family:var(--mono);font-size:9.5px;color:var(--muted);
+  max-height:120px;overflow-y:auto;line-height:1.7}
+.ok{color:var(--cyan)}.wa{color:var(--amber)}.er{color:var(--red)}.di{opacity:.5}
+
+/* ── ocv status ── */
+#ocvs{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:center;padding:8px}
+#ocvs.rdy{color:var(--cyan)}
+.sp{display:inline-block;width:11px;height:11px;border:2px solid var(--bdr);
+  border-top-color:var(--cyan);border-radius:50%;animation:sp .8s linear infinite;
+  vertical-align:middle;margin-right:5px}
+@keyframes sp{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
-
 <header>
-  <div class="logo">🔬</div>
-  <h1>金網結び目検出システム</h1>
-  <span class="ver">v0.1</span>
+  <div class="icon">🔬</div>
+  <h1>金網結び目検出</h1>
+  <span class="badge">v2.0</span>
 </header>
 
-<div class="main-wrap">
+<div class="wrap">
+  <div id="ocvs"><span class="sp"></span>OpenCV.js 読み込み中...</div>
 
-  <div id="opencv-status"><span class="spinner"></span>OpenCV.js 読み込み中...</div>
-
-  <div class="pipeline">
-    <div class="pipeline-title">DETECTION PIPELINE</div>
-    <div class="steps-grid">
-      <div class="step-badge" id="s1"><span class="step-num">STEP 1</span>HSV抽出</div>
-      <div class="step-badge" id="s2"><span class="step-num">STEP 2</span>細線化</div>
-      <div class="step-badge" id="s3"><span class="step-num">STEP 3</span>角度推定</div>
-      <div class="step-badge" id="s4"><span class="step-num">STEP 4</span>ピッチ推定</div>
-      <div class="step-badge" id="s5"><span class="step-num">STEP 5</span>位相推定</div>
-      <div class="step-badge" id="s6"><span class="step-num">STEP 6</span>格子生成</div>
-      <div class="step-badge" id="s7"><span class="step-num">STEP 7</span>MLSフィット</div>
-      <div class="step-badge" id="s8"><span class="step-num">STEP 8</span>外挿</div>
-      <div class="step-badge" id="s9"><span class="step-num">STEP 9</span>全点描画</div>
+  <!-- Pipeline -->
+  <div class="pipe">
+    <div class="pipe-title">PIPELINE</div>
+    <div class="steps">
+      <div class="s" id="s1"><span class="n">STEP1</span>HSV抽出</div>
+      <div class="s" id="s2"><span class="n">STEP2</span>ブロブ</div>
+      <div class="s" id="s3"><span class="n">STEP3</span>基底推定</div>
+      <div class="s" id="s4"><span class="n">STEP4</span>格子割当</div>
+      <div class="s" id="s5"><span class="n">STEP5</span>最小二乗</div>
+      <div class="s" id="s6"><span class="n">STEP6</span>RBF補間</div>
+      <div class="s" id="s7"><span class="n">STEP7</span>全点生成</div>
+      <div class="s" id="s8"><span class="n">STEP8</span>描画</div>
     </div>
   </div>
 
-  <div class="stats-row">
-    <div class="stat-box"><span class="stat-val" id="stat-nodes">—</span><div class="stat-key">KNOTS</div></div>
-    <div class="stat-box"><span class="stat-val" id="stat-pitch">—</span><div class="stat-key">PITCH px</div></div>
-    <div class="stat-box"><span class="stat-val" id="stat-angle">—</span><div class="stat-key">ANGLE °</div></div>
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat"><span class="sv" id="sv-det">—</span><div class="sk">検出数</div></div>
+    <div class="stat"><span class="sv" id="sv-gen">—</span><div class="sk">生成数</div></div>
+    <div class="stat"><span class="sv" id="sv-pu">—</span><div class="sk">|u| px</div></div>
+    <div class="stat"><span class="sv" id="sv-pv">—</span><div class="sk">|v| px</div></div>
   </div>
 
-  <div class="controls">
-    <div class="ctrl-row">
-      <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">📂 画像を選択</button>
-      <input type="file" id="fileInput" accept="image/*" onchange="loadImage(event)">
-      <button class="btn btn-accent" id="runBtn" disabled onclick="runPipeline()">▶ 検出実行</button>
+  <!-- Controls -->
+  <div class="ctrl">
+    <div class="row">
+      <button class="btn btn-v" onclick="document.getElementById('fi').click()">📂 画像選択</button>
+      <input type="file" id="fi" accept="image/*" onchange="loadImg(event)">
+      <button class="btn btn-c" id="runBtn" disabled onclick="runPipeline()">▶ 検出</button>
     </div>
-    <div class="section-sep">── HSV グリーンバック ──────────────</div>
-    <div class="param-grid">
-      <div class="param-item">
-        <label>H min <span id="vHmin">35</span></label>
-        <input type="range" id="Hmin" min="0" max="179" value="35" oninput="document.getElementById('vHmin').textContent=this.value">
+    <div class="sep">── HSV 黄色ドット検出 ─────────────</div>
+    <div class="pgrid">
+      <div class="pi">
+        <label>H min <span id="vhmin">15</span></label>
+        <input type="range" id="hmin" min="0" max="60" value="15" oninput="sv('vhmin',this.value)">
       </div>
-      <div class="param-item">
-        <label>H max <span id="vHmax">85</span></label>
-        <input type="range" id="Hmax" min="0" max="179" value="85" oninput="document.getElementById('vHmax').textContent=this.value">
+      <div class="pi">
+        <label>H max <span id="vhmax">35</span></label>
+        <input type="range" id="hmax" min="10" max="90" value="35" oninput="sv('vhmax',this.value)">
       </div>
-      <div class="param-item">
-        <label>S min <span id="vSmin">60</span></label>
-        <input type="range" id="Smin" min="0" max="255" value="60" oninput="document.getElementById('vSmin').textContent=this.value">
+      <div class="pi">
+        <label>S min <span id="vsmin">120</span></label>
+        <input type="range" id="smin" min="50" max="255" value="120" oninput="sv('vsmin',this.value)">
       </div>
-      <div class="param-item">
-        <label>V min <span id="vVmin">60</span></label>
-        <input type="range" id="Vmin" min="0" max="255" value="60" oninput="document.getElementById('vVmin').textContent=this.value">
+      <div class="pi">
+        <label>V min <span id="vvmin">150</span></label>
+        <input type="range" id="vmin" min="80" max="255" value="150" oninput="sv('vvmin',this.value)">
       </div>
-    </div>
-    <div class="section-sep">── 検出パラメータ ────────────────────</div>
-    <div class="param-grid">
-      <div class="param-item">
-        <label>MLS近傍k <span id="vMls">12</span></label>
-        <input type="range" id="mlsK" min="4" max="40" value="12" oninput="document.getElementById('vMls').textContent=this.value">
+      <div class="pi">
+        <label>最小面積 <span id="vbmin">30</span>px²</label>
+        <input type="range" id="bmin" min="5" max="200" value="30" oninput="sv('vbmin',this.value)">
       </div>
-      <div class="param-item">
-        <label>外挿マージン <span id="vExt">2</span></label>
-        <input type="range" id="extM" min="0" max="6" value="2" oninput="document.getElementById('vExt').textContent=this.value">
-      </div>
-      <div class="param-item">
-        <label>吸着半径 <span id="vSnap">8</span>px</label>
-        <input type="range" id="snapR" min="2" max="30" value="8" oninput="document.getElementById('vSnap').textContent=this.value">
-      </div>
-      <div class="param-item">
-        <label>Hough閾値 <span id="vHT">30</span></label>
-        <input type="range" id="hthr" min="5" max="100" value="30" oninput="document.getElementById('vHT').textContent=this.value">
+      <div class="pi">
+        <label>RBFスムース <span id="vsmooth">50</span></label>
+        <input type="range" id="smooth" min="0" max="500" value="50" oninput="sv('vsmooth',this.value)">
       </div>
     </div>
-    <div class="ctrl-row">
-      <button class="btn btn-ghost" onclick="resetUI()">↺ リセット</button>
+    <div class="row">
+      <button class="btn btn-g" onclick="resetUI()">↺ リセット</button>
     </div>
   </div>
 
-  <div class="dual-canvas">
-    <div class="canvas-card">
-      <div class="canvas-card-label">INPUT / HSV MASK</div>
-      <canvas id="cInput"></canvas>
-    </div>
-    <div class="canvas-card">
-      <div class="canvas-card-label">SKELETON</div>
-      <canvas id="cSkel"></canvas>
-    </div>
+  <!-- Intermediate -->
+  <div class="dual">
+    <div class="cc"><div class="cl">INPUT</div><canvas id="cIn"></canvas></div>
+    <div class="cc"><div class="cl">HSV MASK + BLOBS</div><canvas id="cMask"></canvas></div>
   </div>
 
-  <div class="canvas-card" style="border-radius:10px">
-    <div class="canvas-card-label">OUTPUT — LATTICE OVERLAY</div>
+  <!-- Output -->
+  <div class="out-wrap">
+    <div class="cl" style="padding:6px 10px">OUTPUT — KNOT OVERLAY</div>
     <canvas id="cOut"></canvas>
   </div>
 
-  <div class="log-panel" id="logPanel">
-    <span class="log-dim">&gt; システム初期化中...</span>
-  </div>
-
+  <div class="log" id="logEl"><span class="di">&gt; 待機中...</span></div>
 </div>
-<img id="hiddenImg" style="display:none">
 
-<script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="onOpenCvReady()" onerror="onOpenCvError()"></script>
+<img id="hidImg" style="display:none">
+
+<script async src="https://docs.opencv.org/4.8.0/opencv.js"
+  onload="ocvInit()" onerror="ocvErr()"></script>
 <script>
-let cvReady = false;
-let srcMat = null;
-let W = 0, H = 0;
+// ─────────────────────────────────────────────────────────
+// Globals
+// ─────────────────────────────────────────────────────────
+let cvOk=false, srcMat=null, IW=0, IH=0;
+const MAX_DIM=900;
+const sv=(id,v)=>document.getElementById(id).textContent=v;
+const tick=()=>new Promise(r=>setTimeout(r,8));
 
-function log(msg, type='') {
-  const p = document.getElementById('logPanel');
-  const line = document.createElement('div');
-  const ts = new Date().toLocaleTimeString('ja-JP',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  line.innerHTML = '<span class="log-dim">['+ts+']</span> <span class="'+(type?'log-'+type:'')+'">'+msg+'</span>';
-  p.appendChild(line);
-  p.scrollTop = p.scrollHeight;
+function log(msg,cls=''){
+  const el=document.getElementById('logEl');
+  const d=document.createElement('div');
+  const t=new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  d.innerHTML=`<span class="di">[${t}]</span> <span class="${cls}">${msg}</span>`;
+  el.appendChild(d); el.scrollTop=el.scrollHeight;
+}
+function step(i,st){
+  const e=document.getElementById('s'+i);
+  e.className='s'+(st?' '+st:'');
+}
+function resetSteps(){for(let i=1;i<=8;i++)step(i,'');}
+
+function ocvInit(){
+  const check=()=>{
+    if(typeof cv!=='undefined'&&cv.Mat){
+      cvOk=true;
+      const e=document.getElementById('ocvs');
+      e.className='rdy';e.textContent='✓ OpenCV.js 準備完了';
+      log('OpenCV 準備完了','ok');
+    }else setTimeout(check,100);
+  };check();
+}
+function ocvErr(){
+  document.getElementById('ocvs').textContent='✗ OpenCV.js ロード失敗';
+  log('OpenCV ロード失敗','er');
 }
 
-function setStep(i, state) {
-  const el = document.getElementById('s'+i);
-  el.className = 'step-badge' + (state ? ' '+state : '');
-}
-
-function resetSteps() { for(let i=1;i<=9;i++) setStep(i,''); }
-
-function onOpenCvReady() {
-  function check() {
-    if (typeof cv !== 'undefined' && cv.Mat) {
-      cvReady = true;
-      const el = document.getElementById('opencv-status');
-      el.className = 'ready';
-      el.textContent = '✓ OpenCV.js 準備完了';
-      log('OpenCV.js ロード完了', 'ok');
-    } else { setTimeout(check, 100); }
-  }
-  check();
-}
-
-function onOpenCvError() {
-  document.getElementById('opencv-status').textContent = '✗ OpenCV.js ロード失敗';
-  log('OpenCV.js ロード失敗', 'err');
-}
-
-function loadImage(evt) {
-  const file = evt.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    const img = document.getElementById('hiddenImg');
-    img.onload = () => {
-      W = img.naturalWidth; H = img.naturalHeight;
-      const MAX = 800;
-      let scale = 1;
-      if (W > MAX || H > MAX) scale = MAX / Math.max(W, H);
-      W = Math.round(W * scale); H = Math.round(H * scale);
-      for (const id of ['cInput','cSkel','cOut']) {
-        const c = document.getElementById(id);
-        c.width = W; c.height = H;
+function loadImg(evt){
+  const file=evt.target.files[0]; if(!file)return;
+  const rd=new FileReader();
+  rd.onload=e=>{
+    const img=document.getElementById('hidImg');
+    img.onload=()=>{
+      let sc=1;
+      IW=img.naturalWidth; IH=img.naturalHeight;
+      if(IW>MAX_DIM||IH>MAX_DIM) sc=MAX_DIM/Math.max(IW,IH);
+      IW=Math.round(IW*sc); IH=Math.round(IH*sc);
+      for(const id of['cIn','cMask','cOut']){
+        const c=document.getElementById(id); c.width=IW; c.height=IH;
       }
-      const cIn = document.getElementById('cInput');
-      const ctx = cIn.getContext('2d');
-      ctx.drawImage(img, 0, 0, W, H);
-      if (srcMat) srcMat.delete();
-      srcMat = cv.imread(cIn);
-      log('画像ロード: '+W+'×'+H+'px (scale='+scale.toFixed(2)+')', 'ok');
-      document.getElementById('runBtn').disabled = false;
+      const ctx=document.getElementById('cIn').getContext('2d');
+      ctx.drawImage(img,0,0,IW,IH);
+      if(srcMat)srcMat.delete();
+      srcMat=cv.imread('cIn');
+      log(`画像: ${IW}×${IH}px (scale=${sc.toFixed(2)})`,'ok');
+      document.getElementById('runBtn').disabled=false;
       resetSteps();
-      ['stat-nodes','stat-pitch','stat-angle'].forEach(id => document.getElementById(id).textContent='—');
+      ['sv-det','sv-gen','sv-pu','sv-pv'].forEach(id=>document.getElementById(id).textContent='—');
     };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
+    img.src=e.target.result;
+  };rd.readAsDataURL(file);
 }
 
-async function runPipeline() {
-  if (!cvReady || !srcMat) return;
-  document.getElementById('runBtn').disabled = true;
+// ─────────────────────────────────────────────────────────
+// MAIN PIPELINE
+// ─────────────────────────────────────────────────────────
+async function runPipeline(){
+  if(!cvOk||!srcMat)return;
+  document.getElementById('runBtn').disabled=true;
   resetSteps();
-  log('─── パイプライン開始 ───');
+  log('── パイプライン開始 ──');
 
-  try {
-    // STEP1: HSV グリーンバック除去
-    setStep(1,'active');
-    log('STEP1: HSV グリーンバック除去');
-    const Hmin = +document.getElementById('Hmin').value;
-    const Hmax = +document.getElementById('Hmax').value;
-    const Smin = +document.getElementById('Smin').value;
-    const Vmin = +document.getElementById('Vmin').value;
+  try{
+    const Hmin=+document.getElementById('hmin').value;
+    const Hmax=+document.getElementById('hmax').value;
+    const Smin=+document.getElementById('smin').value;
+    const Vmin=+document.getElementById('vmin').value;
+    const Bmin=+document.getElementById('bmin').value;
+    const smoothing=+document.getElementById('smooth').value;
 
-    const hsv = new cv.Mat();
-    cv.cvtColor(srcMat, hsv, cv.COLOR_BGR2HSV);
-    const lo = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [Hmin, Smin, Vmin, 0]);
-    const hi = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [Hmax, 255, 255, 255]);
-    const greenMask = new cv.Mat();
-    cv.inRange(hsv, lo, hi, greenMask);
-    const netMask = new cv.Mat();
-    cv.bitwise_not(greenMask, netMask);
-    const gray = new cv.Mat();
-    cv.cvtColor(srcMat, gray, cv.COLOR_BGR2GRAY);
-    const netGray = new cv.Mat(H, W, cv.CV_8UC1, new cv.Scalar(255));
-    gray.copyTo(netGray, netMask);
-    setStep(1,'done');
-    log('  → グリーンバック除去完了', 'ok');
+    // ── STEP1: HSV抽出 ─────────────────────────────────
+    step(1,'run'); log('STEP1: HSV黄色抽出');
+    const hsv=new cv.Mat();
+    cv.cvtColor(srcMat,hsv,cv.COLOR_BGR2HSV);
+    const lo=new cv.Mat(IH,IW,hsv.type(),[Hmin,Smin,Vmin,0]);
+    const hi=new cv.Mat(IH,IW,hsv.type(),[Hmax,255,255,255]);
+    const mask=new cv.Mat();
+    cv.inRange(hsv,lo,hi,mask);
+
+    // Morphological cleanup
+    const kern=cv.Mat.ones(3,3,cv.CV_8UC1);
+    cv.morphologyEx(mask,mask,cv.MORPH_OPEN,kern);
+    cv.morphologyEx(mask,mask,cv.MORPH_CLOSE,kern);
+
+    step(1,'ok'); log(`  → マスク生成完了`,'ok');
     await tick();
 
-    // STEP2: 二値化 → Skeleton
-    setStep(2,'active');
-    log('STEP2: 細線化 (Skeleton)');
-    const binary = new cv.Mat();
-    cv.threshold(netGray, binary, 0, 255, cv.THRESH_BINARY_INV | cv.THRESH_OTSU);
-    const skel = skeletonize(binary);
-    const skelDisplay = new cv.Mat();
-    cv.bitwise_not(skel, skelDisplay);
-    cv.imshow('cSkel', skelDisplay);
-    setStep(2,'done');
-    log('  → 細線化完了', 'ok');
-    await tick();
+    // ── STEP2: ブロブ検出 ──────────────────────────────
+    step(2,'run'); log('STEP2: ブロブ重心検出');
 
-    // STEP3: 角度推定
-    setStep(3,'active');
-    log('STEP3: 主軸角度推定');
-    const hthr = +document.getElementById('hthr').value;
-    const { angle0, angle1 } = estimateAngles(skel, hthr);
-    log('  → 角度: '+angle0.toFixed(1)+'° / '+angle1.toFixed(1)+'°', 'ok');
-    setStep(3,'done');
-    await tick();
+    // Show mask on cMask canvas
+    const maskRGB=new cv.Mat();
+    cv.cvtColor(mask,maskRGB,cv.COLOR_GRAY2BGR);
+    cv.imshow('cMask',maskRGB);
 
-    // STEP4: ピッチ推定
-    setStep(4,'active');
-    log('STEP4: ピッチ推定');
-    const pitch = estimatePitch(skel, angle0);
-    log('  → ピッチ: '+pitch.toFixed(1)+'px', 'ok');
-    document.getElementById('stat-pitch').textContent = pitch.toFixed(1);
-    document.getElementById('stat-angle').textContent = angle0.toFixed(1);
-    setStep(4,'done');
-    await tick();
+    // Connected components
+    const labels=new cv.Mat();
+    const stats=new cv.Mat();
+    const centroids=new cv.Mat();
+    const n=cv.connectedComponentsWithStats(mask,labels,stats,centroids,8,cv.CV_32S);
 
-    // STEP5: 交差点検出 (8方向)
-    setStep(5,'active');
-    log('STEP5: 交差点検出 (8方向サンプリング)');
-    const crossings = detectCrossings8(skel);
-    log('  → 交差点候補: '+crossings.length+'点', 'ok');
-    setStep(5,'done');
-    await tick();
+    const dots=[];
+    for(let i=1;i<n;i++){
+      const area=stats.intAt(i,cv.CC_STAT_AREA);
+      if(area<Bmin)continue;
+      const cx=centroids.doubleAt(i,0);
+      const cy=centroids.doubleAt(i,1);
+      dots.push({x:cx,y:cy});
+    }
 
-    // STEP6: 理想格子生成
-    setStep(6,'active');
-    log('STEP6: 理想格子生成');
-    const idealGrid = generateIdealGrid(crossings, angle0, angle1, pitch, W, H);
-    log('  → 格子点: '+idealGrid.length+'点', 'ok');
-    setStep(6,'done');
-    await tick();
+    log(`  → ${dots.length} ドット検出`,'ok');
+    document.getElementById('sv-det').textContent=dots.length;
+    step(2,'ok');
 
-    // STEP7: MLS フィット
-    setStep(7,'active');
-    log('STEP7: MLSフィット');
-    const k = +document.getElementById('mlsK').value;
-    const fittedGrid = mlsFit(idealGrid, crossings, k, pitch);
-    log('  → MLS補正完了 (k='+k+')', 'ok');
-    setStep(7,'done');
-    await tick();
-
-    // STEP8: 外挿
-    setStep(8,'active');
-    log('STEP8: 外挿 (画像端まで延伸)');
-    const ext = +document.getElementById('extM').value;
-    const extrapolated = extrapolateGrid(fittedGrid, idealGrid, angle0, angle1, pitch, W, H, ext);
-    log('  → 外挿後: '+extrapolated.length+'点', 'ok');
-    setStep(8,'done');
-    await tick();
-
-    // STEP9: 全点描画
-    setStep(9,'active');
-    log('STEP9: 格子ライン重畳描画');
-    const snapR = +document.getElementById('snapR').value;
-    drawResult(extrapolated, skel, snapR);
-    document.getElementById('stat-nodes').textContent = extrapolated.length;
-    setStep(9,'done');
-    log('─── 完了 ───', 'ok');
-
-    [hsv,lo,hi,greenMask,netMask,gray,netGray,binary,skel,skelDisplay].forEach(m => {
-      try { m.delete(); } catch(e) {}
+    // Draw detected blobs on mask canvas
+    const maskCtx=document.getElementById('cMask').getContext('2d');
+    maskCtx.fillStyle='rgba(255,220,0,0.8)';
+    dots.forEach(d=>{
+      maskCtx.beginPath();
+      maskCtx.arc(d.x,d.y,5,0,Math.PI*2);
+      maskCtx.fill();
     });
 
-  } catch(e) {
-    log('エラー: '+e.message, 'err');
+    await tick();
+
+    if(dots.length<6){
+      log('ドット不足（HSVパラメータを調整してください）','er');
+      step(2,'err');
+      document.getElementById('runBtn').disabled=false;
+      return;
+    }
+
+    // ── STEP3: 格子基底ベクトル推定 ─────────────────────
+    step(3,'run'); log('STEP3: 格子基底ベクトル推定');
+    const {u,v,origin}=estimateBasis(dots);
+    log(`  → u=(${u[0].toFixed(1)},${u[1].toFixed(1)}) |u|=${vecLen(u).toFixed(1)}px`,'ok');
+    log(`  → v=(${v[0].toFixed(1)},${v[1].toFixed(1)}) |v|=${vecLen(v).toFixed(1)}px`,'ok');
+    document.getElementById('sv-pu').textContent=vecLen(u).toFixed(0);
+    document.getElementById('sv-pv').textContent=vecLen(v).toFixed(0);
+    step(3,'ok');
+    await tick();
+
+    // ── STEP4: (i,j)インデックス割り当て ────────────────
+    step(4,'run'); log('STEP4: グリッドインデックス割り当て');
+    const assigned=assignIndices(dots,u,v,origin);
+    log(`  → ${assigned.length} 点に (i,j) 割り当て`,'ok');
+    step(4,'ok');
+    await tick();
+
+    // ── STEP5: 最小二乗格子フィット ─────────────────────
+    step(5,'run'); log('STEP5: 最小二乗フィット');
+    const {uRef,vRef,originRef}=lsqFit(assigned);
+    log(`  → u=(${uRef[0].toFixed(2)},${uRef[1].toFixed(2)}) v=(${vRef[0].toFixed(2)},${vRef[1].toFixed(2)})`,'ok');
+    step(5,'ok');
+    await tick();
+
+    // ── STEP6: RBF変位補間 ──────────────────────────────
+    step(6,'run'); log('STEP6: RBF変位補間');
+    const {rbfX,rbfY}=buildRBF(assigned,uRef,vRef,originRef,smoothing);
+    log(`  → RBF構築完了 (smooth=${smoothing})`,'ok');
+    step(6,'ok');
+    await tick();
+
+    // ── STEP7: 全格子点生成 ─────────────────────────────
+    step(7,'run'); log('STEP7: 全格子点生成・ワープ');
+    const allPts=generateAllPoints(assigned,uRef,vRef,originRef,rbfX,rbfY,IW,IH);
+    log(`  → ${allPts.length} 点生成`,'ok');
+    document.getElementById('sv-gen').textContent=allPts.length;
+    step(7,'ok');
+    await tick();
+
+    // ── STEP8: 描画 ────────────────────────────────────
+    step(8,'run'); log('STEP8: 結び目描画');
+    drawKnots(allPts);
+    step(8,'ok');
+    log('── 完了 ──','ok');
+
+    // Cleanup
+    [hsv,lo,hi,mask,maskRGB,labels,stats,centroids,kern].forEach(m=>{
+      try{m.delete();}catch(e){}
+    });
+
+  }catch(e){
+    log('エラー: '+e.message,'er');
     console.error(e);
   }
-  document.getElementById('runBtn').disabled = false;
+  document.getElementById('runBtn').disabled=false;
 }
 
-function tick() { return new Promise(r => setTimeout(r, 10)); }
+// ─────────────────────────────────────────────────────────
+// STEP3: Basis vector estimation via nearest-neighbor voting
+// ─────────────────────────────────────────────────────────
+function vecLen(v){return Math.sqrt(v[0]*v[0]+v[1]*v[1]);}
+function vecSub(a,b){return[a[0]-b[0],a[1]-b[1]];}
+function vecAdd(a,b){return[a[0]+b[0],a[1]+b[1]];}
+function vecScale(v,s){return[v[0]*s,v[1]*s];}
+function vecDot(a,b){return a[0]*b[0]+a[1]*b[1];}
 
-// ── STEP2: Morphological Skeleton ──────────────────────────────
-function skeletonize(bin) {
-  const skel = new cv.Mat.zeros(bin.rows, bin.cols, cv.CV_8UC1);
-  const tmp = new cv.Mat();
-  const eroded = new cv.Mat();
-  const img = bin.clone();
-  const kernel = cv.Mat.ones(3, 3, cv.CV_8UC1);
-  let iter = 0;
-  while (iter < 200) {
-    cv.erode(img, eroded, kernel);
-    cv.dilate(eroded, tmp, kernel);
-    cv.subtract(img, tmp, tmp);
-    cv.bitwise_or(skel, tmp, skel);
-    eroded.copyTo(img);
-    if (cv.countNonZero(img) === 0) break;
-    iter++;
-  }
-  [tmp, eroded, img, kernel].forEach(m => m.delete());
-  return skel;
-}
-
-// ── STEP3: Hough angle estimation ─────────────────────────────
-function estimateAngles(skel, hthr) {
-  const lines = new cv.Mat();
-  cv.HoughLines(skel, lines, 1, Math.PI / 180, hthr);
-  const bins = {};
-  const BIN = 5;
-  if (lines.rows > 0) {
-    for (let i = 0; i < lines.rows; i++) {
-      let theta = lines.data32F[i * 2 + 1] * 180 / Math.PI;
-      theta = ((theta % 180) + 180) % 180;
-      const b = Math.round(theta / BIN) * BIN;
-      bins[b] = (bins[b] || 0) + 1;
-    }
-  }
-  lines.delete();
-  const sorted = Object.entries(bins).sort((a, b) => b[1] - a[1]);
-  let a0 = sorted.length > 0 ? +sorted[0][0] : 0;
-  let a1 = sorted.length > 1 ? +sorted[1][0] : (a0 + 90) % 180;
-  if (Math.abs(Math.abs(a0 - a1) - 90) > 25) a1 = (a0 + 90) % 180;
-  return { angle0: a0, angle1: a1 };
-}
-
-// ── STEP4: Pitch via projection autocorrelation ────────────────
-function estimatePitch(skel, angle0) {
-  const rad = angle0 * Math.PI / 180;
-  const nx = Math.cos(rad + Math.PI / 2);
-  const ny = Math.sin(rad + Math.PI / 2);
-  const data = skel.data;
-  const rows = skel.rows, cols = skel.cols;
-  const HALF = Math.ceil(Math.sqrt(rows * rows + cols * cols)) + 10;
-  const proj = new Float64Array(HALF * 2);
-  for (let y = 0; y < rows; y++) {
-    for (let x = 0; x < cols; x++) {
-      if (data[y * cols + x] > 0) {
-        const p = Math.round(x * nx + y * ny) + HALF;
-        if (p >= 0 && p < proj.length) proj[p]++;
+function estimateBasis(dots){
+  const N=dots.length;
+  // Collect all pairwise vectors within range
+  const MAX_DIST=Math.min(IW,IH)*0.15;
+  const MIN_DIST=8;
+  const vecs=[];
+  for(let i=0;i<N;i++){
+    for(let j=i+1;j<N;j++){
+      const dx=dots[j].x-dots[i].x;
+      const dy=dots[j].y-dots[i].y;
+      const d=Math.sqrt(dx*dx+dy*dy);
+      if(d>MIN_DIST&&d<MAX_DIST){
+        vecs.push([dx,dy,d]);
+        vecs.push([-dx,-dy,d]);
       }
     }
   }
-  const N = proj.length;
-  let bestLag = 20, bestAC = -1;
-  for (let lag = 8; lag < N / 2; lag++) {
-    let ac = 0;
-    for (let i = 0; i < N - lag; i++) ac += proj[i] * proj[i + lag];
-    if (ac > bestAC) { bestAC = ac; bestLag = lag; }
-  }
-  return Math.max(10, bestLag);
-}
 
-// ── STEP5: 8-direction crossing detection ─────────────────────
-function detectCrossings8(skel) {
-  const data = skel.data;
-  const rows = skel.rows, cols = skel.cols;
-  const raw = [];
-  const DX = [-1,-1, 0, 1, 1, 1, 0,-1];
-  const DY = [ 0,-1,-1,-1, 0, 1, 1, 1];
-  for (let y = 2; y < rows - 2; y++) {
-    for (let x = 2; x < cols - 2; x++) {
-      if (data[y * cols + x] === 0) continue;
-      let trans = 0;
-      let prev = data[(y + DY[7]) * cols + (x + DX[7])] > 0 ? 1 : 0;
-      for (let k = 0; k < 8; k++) {
-        const ny2 = y + DY[k], nx2 = x + DX[k];
-        const v = (nx2 >= 0 && nx2 < cols && ny2 >= 0 && ny2 < rows && data[ny2 * cols + nx2] > 0) ? 1 : 0;
-        if (v === 1 && prev === 0) trans++;
-        prev = v;
-      }
-      if (trans >= 4) raw.push({ x, y });
-    }
-  }
-  return nms(raw, 5);
-}
+  if(vecs.length===0) throw new Error('近傍ベクトルが見つかりません');
 
-function nms(pts, r) {
-  if (!pts.length) return [];
-  const used = new Uint8Array(pts.length);
-  const out = [];
-  for (let i = 0; i < pts.length; i++) {
-    if (used[i]) continue;
-    let sx = pts[i].x, sy = pts[i].y, cnt = 1;
-    used[i] = 1;
-    for (let j = i + 1; j < pts.length; j++) {
-      if (used[j]) continue;
-      const dx = pts[j].x - pts[i].x, dy = pts[j].y - pts[i].y;
-      if (dx * dx + dy * dy < r * r) { sx += pts[j].x; sy += pts[j].y; cnt++; used[j] = 1; }
-    }
-    out.push({ x: sx / cnt, y: sy / cnt, ix: 0, iy: 0 });
-  }
-  return out;
-}
-
-// ── STEP6: Ideal lattice generation ───────────────────────────
-function generateIdealGrid(crossings, angle0, angle1, pitch, W, H) {
-  if (!crossings.length) return [];
-  let ox = 0, oy = 0;
-  crossings.forEach(p => { ox += p.x; oy += p.y; });
-  ox /= crossings.length; oy /= crossings.length;
-
-  const r0 = angle0 * Math.PI / 180;
-  const r1 = angle1 * Math.PI / 180;
-  const u = { x: Math.cos(r0), y: Math.sin(r0) };
-  const v = { x: Math.cos(r1), y: Math.sin(r1) };
-  const N = Math.ceil(Math.sqrt(W * W + H * H) / pitch) + 4;
-  const pts = [];
-  for (let i = -N; i <= N; i++) {
-    for (let j = -N; j <= N; j++) {
-      const x = ox + pitch * (i * u.x + j * v.x);
-      const y = oy + pitch * (i * u.y + j * v.y);
-      if (x > -pitch * 3 && x < W + pitch * 3 && y > -pitch * 3 && y < H + pitch * 3) {
-        pts.push({ x, y, ix: i, iy: j });
-      }
-    }
-  }
-  return pts;
-}
-
-// ── STEP7: MLS fit ─────────────────────────────────────────────
-function mlsFit(idealGrid, crossings, k, pitch) {
-  if (crossings.length < 3) return idealGrid.map(p => ({ ...p }));
-  return idealGrid.map(ip => {
-    const dists = crossings.map(c => {
-      const dx = c.x - ip.x, dy = c.y - ip.y;
-      return { c, d2: dx * dx + dy * dy };
-    }).sort((a, b) => a.d2 - b.d2).slice(0, Math.min(k, crossings.length));
-
-    const sigma2 = Math.max(dists[0].d2 * 4, pitch * pitch);
-    let wSum = 0, wx = 0, wy = 0;
-    dists.forEach(({ c, d2 }) => {
-      const w = Math.exp(-d2 / (2 * sigma2));
-      wSum += w; wx += w * c.x; wy += w * c.y;
-    });
-    if (wSum < 1e-9) return { ...ip };
-    const cx = wx / wSum, cy = wy / wSum;
-    const distIdeal = Math.sqrt((cx - ip.x) ** 2 + (cy - ip.y) ** 2);
-    const blend = Math.exp(-distIdeal / (Math.sqrt(dists[0].d2) + 1));
-    return { x: ip.x + blend * (cx - ip.x), y: ip.y + blend * (cy - ip.y), ix: ip.ix, iy: ip.iy };
-  });
-}
-
-// ── STEP8: Extrapolation ───────────────────────────────────────
-function extrapolateGrid(fittedGrid, idealGrid, a0, a1, pitch, W, H, ext) {
-  const EPS = pitch * (1.5 + ext * 0.5);
-  const inside = p => p.x > -EPS && p.x < W + EPS && p.y > -EPS && p.y < H + EPS;
-  const fitMap = {};
-  fittedGrid.forEach(p => fitMap[p.ix+','+p.iy] = p);
-  return idealGrid.filter(inside).map(ip => fitMap[ip.ix+','+ip.iy] || ip);
-}
-
-// ── STEP9: Draw ────────────────────────────────────────────────
-function drawResult(gridPts, skel, snapR) {
-  const cOut = document.getElementById('cOut');
-  const ctx = cOut.getContext('2d');
-  ctx.drawImage(document.getElementById('cInput'), 0, 0);
-
-  const idx = {};
-  gridPts.forEach(p => { idx[p.ix+','+p.iy] = p; });
-
-  const skelData = skel.data;
-  const skelCols = skel.cols;
-  const skelRows = skel.rows;
-
-  function snap(p) {
-    const r = snapR;
-    const x0 = Math.round(p.x), y0 = Math.round(p.y);
-    let best = null, bestD = r * r + 1;
-    for (let dy = -r; dy <= r; dy++) {
-      for (let dx = -r; dx <= r; dx++) {
-        const nx = x0 + dx, ny = y0 + dy;
-        if (nx < 0 || nx >= skelCols || ny < 0 || ny >= skelRows) continue;
-        if (skelData[ny * skelCols + nx] > 0) {
-          const d2 = dx * dx + dy * dy;
-          if (d2 < bestD) { bestD = d2; best = { x: nx, y: ny }; }
-        }
-      }
-    }
-    return best || p;
-  }
-
-  const ixSet = [...new Set(gridPts.map(p => p.ix))].sort((a,b) => a-b);
-  const iySet = [...new Set(gridPts.map(p => p.iy))].sort((a,b) => a-b);
-
-  // direction u lines (ix=const)
-  ctx.strokeStyle = 'rgba(0,229,255,0.65)';
-  ctx.lineWidth = 1.5;
-  ixSet.forEach(ix => {
-    const col = iySet.map(iy => idx[ix+','+iy]).filter(Boolean);
-    if (col.length < 2) return;
-    ctx.beginPath();
-    col.forEach((p, i) => {
-      const s = snap(p);
-      i === 0 ? ctx.moveTo(s.x, s.y) : ctx.lineTo(s.x, s.y);
-    });
-    ctx.stroke();
+  // Cluster by direction into 2 families
+  // Use angle histogram (bins of 5°)
+  const BIN=5;
+  const hist=new Array(180/BIN).fill(null).map(()=>({sum:[0,0],cnt:0,dists:[]}));
+  vecs.forEach(([dx,dy,d])=>{
+    let ang=(Math.atan2(dy,dx)*180/Math.PI+360)%180;
+    const bi=Math.floor(ang/BIN)%(180/BIN);
+    hist[bi].sum[0]+=dx; hist[bi].sum[1]+=dy;
+    hist[bi].cnt++;
+    hist[bi].dists.push(d);
   });
 
-  // direction v lines (iy=const)
-  ctx.strokeStyle = 'rgba(124,77,255,0.65)';
-  iySet.forEach(iy => {
-    const row = ixSet.map(ix => idx[ix+','+iy]).filter(Boolean);
-    if (row.length < 2) return;
-    ctx.beginPath();
-    row.forEach((p, i) => {
-      const s = snap(p);
-      i === 0 ? ctx.moveTo(s.x, s.y) : ctx.lineTo(s.x, s.y);
+  // Find top 2 peaks at least 30° apart
+  const sorted=[...hist.map((h,i)=>({h,i}))].sort((a,b)=>b.h.cnt-a.h.cnt);
+  let peakA=sorted[0].i;
+  let peakB=-1;
+  for(let k=1;k<sorted.length;k++){
+    const diff=Math.abs(sorted[k].i-peakA)*BIN;
+    const angDiff=Math.min(diff,180-diff);
+    if(angDiff>30){peakB=sorted[k].i;break;}
+  }
+  if(peakB<0) peakB=(peakA+18)%(180/BIN);
+
+  function binMedianVec(bi){
+    // Collect all vecs in this bin ±1
+    const range=[-1,0,1];
+    const bvecs=[];
+    range.forEach(d=>{
+      const b=(bi+d+180/BIN)%(180/BIN);
+      const h=hist[b];
+      // We need the original vecs for this bin
     });
-    ctx.stroke();
+    // Use mean direction × median length from histogram
+    const h=hist[bi];
+    if(h.cnt===0)return[0,0];
+    const mx=h.sum[0]/h.cnt; const my=h.sum[1]/h.cnt;
+    const len=vecLen([mx,my]);
+    if(len<1)return[0,0];
+    const dists=h.dists.slice().sort((a,b)=>a-b);
+    const medD=dists[Math.floor(dists.length/2)];
+    return[mx/len*medD, my/len*medD];
+  }
+
+  // Recollect properly
+  const vecsA=[],vecsB=[];
+  vecs.forEach(([dx,dy,d])=>{
+    let ang=(Math.atan2(dy,dx)*180/Math.PI+360)%180;
+    const bi=Math.floor(ang/BIN)%(180/BIN);
+    const diffA=Math.min(Math.abs(bi-peakA),180/BIN-Math.abs(bi-peakA))*BIN;
+    const diffB=Math.min(Math.abs(bi-peakB),180/BIN-Math.abs(bi-peakB))*BIN;
+    if(diffA<diffB&&diffA<20) vecsA.push([dx,dy]);
+    else if(diffB<diffA&&diffB<20) vecsB.push([dx,dy]);
   });
 
-  // Knot markers
-  ctx.fillStyle = 'rgba(255,109,0,0.9)';
-  gridPts.forEach(p => {
-    const s = snap(p);
-    if (s.x < 0 || s.x > W || s.y < 0 || s.y > H) return;
+  function medVec(arr){
+    if(!arr.length)return[1,0];
+    const xs=arr.map(v=>v[0]).sort((a,b)=>a-b);
+    const ys=arr.map(v=>v[1]).sort((a,b)=>a-b);
+    const m=Math.floor(arr.length/2);
+    return[xs[m],ys[m]];
+  }
+
+  // Use positive-x direction
+  let ua=medVec(vecsA.filter(v=>v[0]>0));
+  let ub=medVec(vecsB.filter(v=>v[0]>0));
+  // Ensure u has larger x component (more horizontal)
+  if(Math.abs(ua[1])>Math.abs(ub[1])){const tmp=ua;ua=ub;ub=tmp;}
+
+  const origin={x:dots.reduce((s,d)=>s+d.x,0)/dots.length,
+                y:dots.reduce((s,d)=>s+d.y,0)/dots.length};
+  return{u:ua,v:ub,origin:[origin.x,origin.y]};
+}
+
+// ─────────────────────────────────────────────────────────
+// STEP4: Assign (i,j) indices
+// ─────────────────────────────────────────────────────────
+function assignIndices(dots,u,v,origin){
+  const M=[[u[0],v[0]],[u[1],v[1]]];
+  const det=M[0][0]*M[1][1]-M[0][1]*M[1][0];
+  const Minv=[[M[1][1]/det,-M[0][1]/det],[-M[1][0]/det,M[0][0]/det]];
+
+  const res=dots.map(d=>{
+    const dx=d.x-origin[0], dy=d.y-origin[1];
+    const ci=Minv[0][0]*dx+Minv[0][1]*dy;
+    const cj=Minv[1][0]*dx+Minv[1][1]*dy;
+    const i=Math.round(ci), j=Math.round(cj);
+    return{x:d.x,y:d.y,i,j};
+  });
+
+  // Remove duplicates (keep closest to ideal)
+  const map=new Map();
+  res.forEach(p=>{
+    const key=`${p.i},${p.j}`;
+    if(!map.has(key)){map.set(key,p);}
+    else{
+      const ex=map.get(key);
+      const px=origin[0]+p.i*u[0]+p.j*v[0];
+      const py=origin[1]+p.i*u[1]+p.j*v[1];
+      const d1=(p.x-px)**2+(p.y-py)**2;
+      const d2=(ex.x-px)**2+(ex.y-py)**2;
+      if(d1<d2)map.set(key,p);
+    }
+  });
+  return[...map.values()];
+}
+
+// ─────────────────────────────────────────────────────────
+// STEP5: Least-squares grid fit
+// ─────────────────────────────────────────────────────────
+function lsqFit(assigned){
+  // Fit: (x,y) = origin + i*u + j*v  →  overdetermined linear system
+  // Variables: [ox,oy,ux,uy,vx,vy]
+  // x = ox + i*ux + j*vx
+  // y = oy + i*uy + j*vy
+
+  const N=assigned.length;
+  // Use numpy-style least squares: separate x and y
+  // [1, i, j] * [ox, ux, vx]^T = x
+  let AtA_x=[[0,0,0],[0,0,0],[0,0,0]];
+  let Atb_x=[0,0,0];
+  let AtA_y=[[0,0,0],[0,0,0],[0,0,0]];
+  let Atb_y=[0,0,0];
+
+  assigned.forEach(({x,y,i,j})=>{
+    const row=[1,i,j];
+    for(let r=0;r<3;r++){
+      for(let c=0;c<3;c++){
+        AtA_x[r][c]+=row[r]*row[c];
+        AtA_y[r][c]+=row[r]*row[c];
+      }
+      Atb_x[r]+=row[r]*x;
+      Atb_y[r]+=row[r]*y;
+    }
+  });
+
+  const sx=solve3x3(AtA_x,Atb_x);
+  const sy=solve3x3(AtA_y,Atb_y);
+
+  return{
+    originRef:[sx[0],sy[0]],
+    uRef:[sx[1],sy[1]],
+    vRef:[sx[2],sy[2]]
+  };
+}
+
+function solve3x3(A,b){
+  // Cramer's rule
+  const det=(A[0][0]*(A[1][1]*A[2][2]-A[1][2]*A[2][1])
+            -A[0][1]*(A[1][0]*A[2][2]-A[1][2]*A[2][0])
+            +A[0][2]*(A[1][0]*A[2][1]-A[1][1]*A[2][0]));
+  if(Math.abs(det)<1e-10)return[0,0,0];
+  const x0=(b[0]*(A[1][1]*A[2][2]-A[1][2]*A[2][1])
+           -A[0][1]*(b[1]*A[2][2]-A[1][2]*b[2])
+           +A[0][2]*(b[1]*A[2][1]-A[1][1]*b[2]))/det;
+  const x1=(A[0][0]*(b[1]*A[2][2]-A[1][2]*b[2])
+           -b[0]*(A[1][0]*A[2][2]-A[1][2]*A[2][0])
+           +A[0][2]*(A[1][0]*b[2]-b[1]*A[2][0]))/det;
+  const x2=(A[0][0]*(A[1][1]*b[2]-b[1]*A[2][1])
+           -A[0][1]*(A[1][0]*b[2]-b[1]*A[2][0])
+           +b[0]*(A[1][0]*A[2][1]-A[1][1]*A[2][0]))/det;
+  return[x0,x1,x2];
+}
+
+// ─────────────────────────────────────────────────────────
+// STEP6: RBF (Thin Plate Spline) displacement interpolation
+// ─────────────────────────────────────────────────────────
+function buildRBF(assigned,u,v,origin,smoothing){
+  // Control points: ideal → displacement
+  const ctrl=assigned.map(({x,y,i,j})=>{
+    const ix=origin[0]+i*u[0]+j*v[0];
+    const iy=origin[1]+i*u[1]+j*v[1];
+    return{ix,iy,dx:x-ix,dy:y-iy};
+  });
+
+  // TPS: φ(r) = r² ln(r)
+  const N=ctrl.length;
+  // Build system matrix K (NxN) + polynomial (Nx3) + regularization
+  // For simplicity: use direct RBF without polynomial term, with smoothing
+  // W = (K + λI)^{-1} * f
+
+  const K=[];
+  for(let i=0;i<N;i++){
+    K.push([]);
+    for(let j=0;j<N;j++){
+      const dx=ctrl[i].ix-ctrl[j].ix;
+      const dy=ctrl[i].iy-ctrl[j].iy;
+      const r2=dx*dx+dy*dy;
+      K[i].push(r2>1e-10?r2*Math.log(Math.sqrt(r2)+1e-10):0);
+    }
+    K[i][i]+=smoothing; // regularization
+  }
+
+  const fX=ctrl.map(c=>c.dx);
+  const fY=ctrl.map(c=>c.dy);
+  const wX=solveLinear(K,fX);
+  const wY=solveLinear(K,fY);
+
+  // Return interpolation function
+  function interp(qx,qy,weights){
+    let val=0;
+    for(let i=0;i<N;i++){
+      const dx=qx-ctrl[i].ix;
+      const dy=qy-ctrl[i].iy;
+      const r2=dx*dx+dy*dy;
+      const phi=r2>1e-10?r2*Math.log(Math.sqrt(r2)+1e-10):0;
+      val+=weights[i]*phi;
+    }
+    return val;
+  }
+
+  return{
+    rbfX:(qx,qy)=>interp(qx,qy,wX),
+    rbfY:(qx,qy)=>interp(qx,qy,wY)
+  };
+}
+
+// Gaussian elimination solver
+function solveLinear(A,b){
+  const n=A.length;
+  const M=A.map((row,i)=>[...row,b[i]]);
+  for(let col=0;col<n;col++){
+    let maxR=col;
+    for(let r=col+1;r<n;r++) if(Math.abs(M[r][col])>Math.abs(M[maxR][col]))maxR=r;
+    [M[col],M[maxR]]=[M[maxR],M[col]];
+    if(Math.abs(M[col][col])<1e-12)continue;
+    for(let r=0;r<n;r++){
+      if(r===col)continue;
+      const f=M[r][col]/M[col][col];
+      for(let c=col;c<=n;c++) M[r][c]-=f*M[col][c];
+    }
+  }
+  return M.map((row,i)=>row[n]/(Math.abs(row[i])<1e-12?1:row[i]));
+}
+
+// ─────────────────────────────────────────────────────────
+// STEP7: Generate all grid points with warp
+// ─────────────────────────────────────────────────────────
+function generateAllPoints(assigned,u,v,origin,rbfX,rbfY,W,H){
+  // Determine grid extent from assigned
+  const is=assigned.map(p=>p.i);
+  const js=assigned.map(p=>p.j);
+  const iMin=Math.min(...is)-1, iMax=Math.max(...is)+1;
+  const jMin=Math.min(...js)-1, jMax=Math.max(...js)+1;
+
+  const result=[];
+  const EPS=vecLen(u)*2;
+
+  for(let i=iMin;i<=iMax;i++){
+    for(let j=jMin;j<=jMax;j++){
+      // Ideal position
+      const ix=origin[0]+i*u[0]+j*v[0];
+      const iy=origin[1]+i*u[1]+j*v[1];
+      // Skip if far outside
+      if(ix<-EPS||ix>W+EPS||iy<-EPS||iy>H+EPS)continue;
+
+      // Apply RBF displacement
+      const dx=rbfX(ix,iy);
+      const dy=rbfY(ix,iy);
+      result.push({x:ix+dx,y:iy+dy,i,j});
+    }
+  }
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────
+// STEP8: Draw knots
+// ─────────────────────────────────────────────────────────
+function drawKnots(pts){
+  const cOut=document.getElementById('cOut');
+  const ctx=cOut.getContext('2d');
+  // Draw original image as base
+  ctx.drawImage(document.getElementById('cIn'),0,0);
+
+  // Draw circles matching reference image style (yellow filled)
+  const r=6;
+  pts.forEach(({x,y})=>{
+    const xi=Math.round(x), yi=Math.round(y);
+    if(xi<-r||xi>IW+r||yi<-r||yi>IH+r)return;
     ctx.beginPath();
-    ctx.arc(s.x, s.y, 3, 0, Math.PI * 2);
+    ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,220,0,0.92)';
     ctx.fill();
+    ctx.strokeStyle='rgba(200,120,0,0.7)';
+    ctx.lineWidth=1.2;
+    ctx.stroke();
   });
 }
 
-function resetUI() {
+function resetUI(){
   resetSteps();
-  ['cInput','cSkel','cOut'].forEach(id => {
-    const c = document.getElementById(id);
-    c.getContext('2d').clearRect(0, 0, c.width, c.height);
+  ['cIn','cMask','cOut'].forEach(id=>{
+    const c=document.getElementById(id);
+    c.getContext('2d').clearRect(0,0,c.width,c.height);
   });
-  ['stat-nodes','stat-pitch','stat-angle'].forEach(id => document.getElementById(id).textContent='—');
-  document.getElementById('runBtn').disabled = true;
-  if (srcMat) { srcMat.delete(); srcMat = null; }
-  log('リセット', 'warn');
+  ['sv-det','sv-gen','sv-pu','sv-pv'].forEach(id=>document.getElementById(id).textContent='—');
+  document.getElementById('runBtn').disabled=true;
+  if(srcMat){srcMat.delete();srcMat=null;}
+  log('リセット','wa');
 }
 </script>
 </body>
